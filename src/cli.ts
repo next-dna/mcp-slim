@@ -5,9 +5,13 @@
  * Commands:
  *   audit      Scan configs and report token bloat + security risks.
  *   compress   Emit a minified, lossless config and report token savings.
+ *   trends     Report token footprint over time (needs recorded history).
  *
  * Flags:
  *   --config <path>   Use a specific config file instead of auto-discovery.
+ *   --period <p>      Trend bucket size (hourly|daily|weekly|monthly|quarterly|yearly).
+ *   --history <path>  Token-footprint history file (default ~/.mcp-slim/history.jsonl).
+ *   --no-history      Do not record a snapshot on `audit`.
  *   --json            Emit machine-readable JSON instead of a table.
  *   --help, -h        Show usage.
  *   --version, -v     Show version.
@@ -20,12 +24,16 @@ import { discoverConfigs } from './scanner/config-scanner';
 import { analyzeConfig } from './analyzer/token-calculator';
 import { lintConfig } from './security/linter';
 import { compressConfig } from './compressor/compressor';
+import { appendSnapshots, readHistory } from './history/history-store';
+import { TREND_PERIODS, aggregateTrends } from './history/trends';
 import {
   heading,
   renderCompressionResult,
   renderSecurityFindings,
   renderTokenReport,
+  renderTrends,
 } from './reporter/reporter';
+import type { TokenSnapshot, TrendPeriod } from './types';
 
 interface ParsedArgs {
   command: string | undefined;
@@ -33,6 +41,9 @@ interface ParsedArgs {
   json: boolean;
   help: boolean;
   version: boolean;
+  period: TrendPeriod;
+  history: string | undefined;
+  noHistory: boolean;
 }
 
 const USAGE = `
@@ -44,9 +55,13 @@ Usage:
 Commands:
   audit                 Scan configs and report token usage + security risks
   compress              Emit a minified, lossless config and report savings
+  trends                Report token footprint over time from recorded history
 
 Options:
   --config <path>       Use a specific config file (skips auto-discovery)
+  --period <p>          Trend bucket: hourly|daily|weekly|monthly|quarterly|yearly (default daily)
+  --history <path>      History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
+  --no-history          Do not record a snapshot when running audit
   --json                Output machine-readable JSON
   -h, --help            Show this help
   -v, --version         Show version
@@ -54,8 +69,20 @@ Options:
 Examples:
   npx mcp-slim audit
   npx mcp-slim audit --config ./claude_desktop_config.json
+  npx mcp-slim trends --period weekly
   npx mcp-slim compress --json
 `;
+
+/** Validate and set a trend period, throwing on an unknown value. */
+function setPeriod(parsed: ParsedArgs, value: string | undefined): void {
+  if (value !== undefined && (TREND_PERIODS as readonly string[]).includes(value)) {
+    parsed.period = value as TrendPeriod;
+    return;
+  }
+  throw new Error(
+    `Invalid --period "${value ?? ''}". Use one of: ${TREND_PERIODS.join(', ')}.`,
+  );
+}
 
 /** Parse argv into a small, typed options object. */
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -65,6 +92,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
     json: false,
     help: false,
     version: false,
+    period: 'daily',
+    history: undefined,
+    noHistory: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -81,12 +111,25 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--json':
         parsed.json = true;
         break;
+      case '--no-history':
+        parsed.noHistory = true;
+        break;
       case '--config':
         parsed.config = argv[++i];
+        break;
+      case '--history':
+        parsed.history = argv[++i];
+        break;
+      case '--period':
+        setPeriod(parsed, argv[++i]);
         break;
       default:
         if (arg !== undefined && arg.startsWith('--config=')) {
           parsed.config = arg.slice('--config='.length);
+        } else if (arg !== undefined && arg.startsWith('--history=')) {
+          parsed.history = arg.slice('--history='.length);
+        } else if (arg !== undefined && arg.startsWith('--period=')) {
+          setPeriod(parsed, arg.slice('--period='.length));
         } else if (arg !== undefined && !arg.startsWith('-') && parsed.command === undefined) {
           parsed.command = arg;
         }
@@ -120,6 +163,19 @@ function runAudit(args: ParsedArgs): number {
     tokens: analyzeConfig(config),
     findings: lintConfig(config),
   }));
+
+  // Record a token-footprint snapshot so `trends` can show change over time.
+  if (!args.noHistory) {
+    const now = new Date().toISOString();
+    const snapshots: TokenSnapshot[] = results.map((r) => ({
+      ts: now,
+      source: r.tokens.source,
+      path: r.tokens.path,
+      totalTokens: r.tokens.totalTokens,
+      serverCount: r.tokens.servers.length,
+    }));
+    appendSnapshots(snapshots, args.history);
+  }
 
   if (args.json) {
     process.stdout.write(JSON.stringify(results, null, 2) + '\n');
@@ -164,9 +220,29 @@ function runCompress(args: ParsedArgs): number {
   return 0;
 }
 
+/** `trends` command. Returns a process exit code. */
+function runTrends(args: ParsedArgs): number {
+  const snapshots = readHistory(args.history);
+  const buckets = aggregateTrends(snapshots, args.period);
+
+  if (args.json) {
+    process.stdout.write(JSON.stringify({ period: args.period, buckets }, null, 2) + '\n');
+    return 0;
+  }
+
+  process.stdout.write(renderTrends(buckets, args.period) + '\n');
+  return 0;
+}
+
 /** Entry point. Returns a process exit code (does not call process.exit). */
 export function main(argv: string[] = process.argv.slice(2)): number {
-  const args = parseArgs(argv);
+  let args: ParsedArgs;
+  try {
+    args = parseArgs(argv);
+  } catch (err) {
+    process.stderr.write(`Error: ${(err as Error).message}\n`);
+    return 1;
+  }
 
   if (args.version) {
     process.stdout.write(readVersion() + '\n');
@@ -184,6 +260,8 @@ export function main(argv: string[] = process.argv.slice(2)): number {
         return runAudit(args);
       case 'compress':
         return runCompress(args);
+      case 'trends':
+        return runTrends(args);
       default:
         process.stderr.write(`Unknown command: ${args.command}\n`);
         process.stdout.write(USAGE);

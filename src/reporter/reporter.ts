@@ -9,7 +9,13 @@
 import type {
   CompressionResult,
 } from '../compressor/compressor';
-import type { ConfigTokenReport, SecurityFinding, Severity } from '../types';
+import type {
+  ConfigTokenReport,
+  SecurityFinding,
+  Severity,
+  TrendBucket,
+  TrendPeriod,
+} from '../types';
 
 const COLOR_ENABLED = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 
@@ -115,4 +121,48 @@ export function renderCompressionResult(source: string, result: CompressionResul
 /** Section heading helper. */
 export function heading(text: string): string {
   return paint('cyan', paint('bold', `\n${text}`));
+}
+
+/** Render a token-footprint trend table for one period. */
+export function renderTrends(buckets: TrendBucket[], period: TrendPeriod): string {
+  const lines: string[] = [];
+  lines.push(heading(`Token footprint trend (${period})`));
+
+  if (buckets.length === 0) {
+    lines.push(paint('gray', '  No history yet. Run `mcp-slim audit` to start recording snapshots.'));
+    return lines.join('\n');
+  }
+
+  const bucketWidth = Math.max(10, ...buckets.map((b) => b.bucket.length));
+  lines.push(
+    '  ' +
+      paint(
+        'dim',
+        pad('PERIOD', bucketWidth) +
+          '  ' +
+          pad('RUNS', 6) +
+          '  ' +
+          pad('AVG', 8) +
+          '  ' +
+          pad('MIN', 8) +
+          '  ' +
+          pad('MAX', 8) +
+          '  LAST',
+      ),
+  );
+  for (const b of buckets) {
+    lines.push(
+      '  ' +
+        pad(b.bucket, bucketWidth) +
+        '  ' +
+        pad(formatNumber(b.samples), 6) +
+        '  ' +
+        pad(formatNumber(b.avgTokens), 8) +
+        '  ' +
+        paint('gray', pad(formatNumber(b.minTokens), 8) + '  ' + pad(formatNumber(b.maxTokens), 8)) +
+        '  ' +
+        formatNumber(b.lastTokens),
+    );
+  }
+  return lines.join('\n');
 }

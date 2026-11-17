@@ -5,6 +5,13 @@ maintained automatically by [release-please](https://github.com/googleapis/relea
 from [Conventional Commits](https://www.conventionalcommits.org/); do not edit
 it by hand.
 
+## [1.0.2](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.0.1...mcp-slim-v1.0.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* make OIDC publish work on Node 20 and add manual dispatch ([#4](https://github.com/next-dna/mcp-slim/issues/4)) ([424ac69](https://github.com/next-dna/mcp-slim/commit/424ac693f9f187e4111aef76ed3164b79c665310))
+
 ## [1.0.1](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.0.0...mcp-slim-v1.0.1) (2026-11-17)
 
 

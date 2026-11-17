@@ -4,6 +4,15 @@
 
 `mcp-slim` is a developer-first CLI that inspects the MCP servers registered with Claude Desktop, Cursor, and Windsurf. It estimates the token footprint each server adds to your context, flags risky permissions (shell execution, broad filesystem access, unpinned packages, plaintext secrets, insecure transports), and can emit a minified, lossless config to trim overhead.
 
+## Why mcp-slim?
+
+Every MCP server you register carries two hidden costs:
+
+- **Token bloat.** Each server's tool schemas are injected into your context on _every_ request. A few chatty servers can quietly burn thousands of tokens — raising cost and crowding out the task at hand.
+- **Security exposure.** MCP servers run real commands on your machine. A config can silently grant shell execution, full-filesystem access, plaintext secrets, or unpinned packages that auto-update to whatever a maintainer ships next.
+
+These configs are buried JSON files most people never open. `mcp-slim` makes them legible in a single command.
+
 ## Features
 
 - **Config auto-discovery** — finds standard config files across macOS, Windows, and Linux, or point it at your own with `--config`.
@@ -11,6 +20,38 @@
 - **Security linter** — heuristic checks for shell exec, broad filesystem scopes, unpinned `npx`/`uvx` packages, plaintext secrets, and `http://` endpoints.
 - **Lossless compression** — strips insignificant JSON whitespace and collapses whitespace in `description` fields, reporting token savings.
 - **Zero runtime dependencies** — the CLI runs on native Node APIs (`fs`, `path`, `os`) only.
+
+## Use cases
+
+**Quick personal health check** (no install needed):
+
+```bash
+npx @nextdna/mcp-slim audit
+```
+
+Auto-finds your Claude / Cursor / Windsurf configs and prints a per-server token table plus ranked security findings.
+
+**Review a shared team config before rollout:**
+
+```bash
+npx @nextdna/mcp-slim audit --config ./team-mcp.json
+```
+
+Catches broad filesystem grants or `bash -c` servers before they reach everyone's machine.
+
+**Gate CI / pre-commit on config hygiene** — `audit` exits with code `2` on any HIGH finding:
+
+```bash
+npx @nextdna/mcp-slim audit --config ./mcp.json || exit 1
+```
+
+Add `--json` to feed dashboards or custom policy checks.
+
+**Trim context cost** with a lossless, minified config:
+
+```bash
+npx @nextdna/mcp-slim compress
+```
 
 ## Requirements
 
@@ -21,13 +62,13 @@
 No install needed:
 
 ```bash
-npx mcp-slim audit
+npx @nextdna/mcp-slim audit
 ```
 
 Or install globally:
 
 ```bash
-npm install -g mcp-slim
+npm install -g @nextdna/mcp-slim
 mcp-slim audit
 ```
 
@@ -51,16 +92,16 @@ mcp-slim compress              Emit a minified, lossless config and report savin
 
 ```bash
 # Audit every config the tool can find
-npx mcp-slim audit
+npx @nextdna/mcp-slim audit
 
 # Audit a specific file
-npx mcp-slim audit --config ./claude_desktop_config.json
+npx @nextdna/mcp-slim audit --config ./claude_desktop_config.json
 
 # Get JSON for scripting / CI
-npx mcp-slim audit --json
+npx @nextdna/mcp-slim audit --json
 
 # See how much you could trim
-npx mcp-slim compress
+npx @nextdna/mcp-slim compress
 ```
 
 ### Exit codes
@@ -74,7 +115,7 @@ npx mcp-slim compress
 This lets you gate CI on config hygiene:
 
 ```bash
-npx mcp-slim audit || echo "MCP config needs attention"
+npx @nextdna/mcp-slim audit || echo "MCP config needs attention"
 ```
 
 ## Discovered config locations

@@ -5,6 +5,13 @@ maintained automatically by [release-please](https://github.com/googleapis/relea
 from [Conventional Commits](https://www.conventionalcommits.org/); do not edit
 it by hand.
 
+## [1.1.0](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.0.2...mcp-slim-v1.1.0) (2026-11-17)
+
+
+### Features
+
+* track token footprint over time with a trends command ([#9](https://github.com/next-dna/mcp-slim/issues/9)) ([e6584d4](https://github.com/next-dna/mcp-slim/commit/e6584d4d015bedc7672c3edd91b18c9dc1fa06f6))
+
 ## [1.0.2](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.0.1...mcp-slim-v1.0.2) (2026-11-17)
 
 

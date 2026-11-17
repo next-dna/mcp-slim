@@ -1,0 +1,64 @@
+name: Release
+
+# release-please watches main for Conventional Commits and maintains a
+# "Release PR". When that PR is merged it creates the tag + GitHub Release,
+# and the same run then publishes to npm via OIDC Trusted Publishing.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # create release commits, tags and GitHub Releases
+  pull-requests: write # open/update the Release PR
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write # OIDC: mint a short-lived npm publish credential + provenance
+    steps:
+      - name: Run release-please
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Everything below runs ONLY on the push that merges a Release PR,
+      # i.e. when release-please has just created a new GitHub Release.
+      - name: Checkout
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        if: ${{ steps.release.outputs.release_created }}
+        run: npm ci
+
+      - name: Build
+        if: ${{ steps.release.outputs.release_created }}
+        run: npm run build
+
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 20 ships an older npm.
+      - name: Upgrade npm for OIDC
+        if: ${{ steps.release.outputs.release_created }}
+        run: npm install -g npm@latest
+
+      # No NODE_AUTH_TOKEN: npm exchanges the GitHub OIDC id-token for a one-time
+      # publish credential matching the trusted publisher configured on npm.
+      - name: Publish to npm
+        if: ${{ steps.release.outputs.release_created }}
+        run: npm publish --access public

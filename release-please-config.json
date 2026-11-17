@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "@nextdna/mcp-slim",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "draft": false,
+      "prerelease": false,
+      "include-v-in-tag": true
+    }
+  },
+  "$comment": "release-please reads conventional commits on main and keeps an auto-updating Release PR. Merging it creates the tag + GitHub Release, which the release workflow then publishes to npm via OIDC."
+}

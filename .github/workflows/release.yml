@@ -3,9 +3,13 @@ name: Release
 # release-please watches main for Conventional Commits and maintains a
 # "Release PR". When that PR is merged it creates the tag + GitHub Release,
 # and the same run then publishes to npm via OIDC Trusted Publishing.
+#
+# workflow_dispatch is a manual escape hatch: it runs the publish steps for
+# the current main (useful to recover a release whose publish step failed).
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write # create release commits, tags and GitHub Releases
@@ -30,14 +34,14 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # Everything below runs ONLY on the push that merges a Release PR,
-      # i.e. when release-please has just created a new GitHub Release.
+      # The publish steps run when release-please has just created a release,
+      # or on a manual workflow_dispatch (recovery).
       - name: Checkout
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
         uses: actions/checkout@v4
 
       - name: Set up Node
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
@@ -45,20 +49,23 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
         run: npm ci
 
       - name: Build
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
         run: npm run build
 
-      # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 20 ships an older npm.
+      # Trusted Publishing (OIDC) needs npm >= 11.5.1. Node 20 ships npm 10, and
+      # npm@latest (v12+) dropped Node 20, so pin to the 11.x line which supports
+      # Node 20 and has OIDC trusted publishing.
       - name: Upgrade npm for OIDC
-        if: ${{ steps.release.outputs.release_created }}
-        run: npm install -g npm@latest
+        if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
+        run: npm install -g npm@^11
 
       # No NODE_AUTH_TOKEN: npm exchanges the GitHub OIDC id-token for a one-time
-      # publish credential matching the trusted publisher configured on npm.
+      # publish credential matching the trusted publisher configured on npm
+      # (which must reference this workflow file, release.yml).
       - name: Publish to npm
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
         run: npm publish --access public

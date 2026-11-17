@@ -5,6 +5,13 @@ maintained automatically by [release-please](https://github.com/googleapis/relea
 from [Conventional Commits](https://www.conventionalcommits.org/); do not edit
 it by hand.
 
+## [1.0.1](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.0.0...mcp-slim-v1.0.1) (2026-11-17)
+
+
+### Miscellaneous Chores
+
+* add .nvmrc pinning Node 20 ([#2](https://github.com/next-dna/mcp-slim/issues/2)) ([6b8d034](https://github.com/next-dna/mcp-slim/commit/6b8d0342afc9d2ea14cb9d811212263eb1092d97))
+
 ## 1.0.0 (2026-11-17)
 
 ### Features

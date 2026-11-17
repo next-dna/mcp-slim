@@ -13,7 +13,18 @@
     "tokens"
   ],
   "license": "MIT",
-  "author": "",
+  "author": "Sandip Gami",
+  "contributors": [
+    "Sandip Gami"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/next-dna/mcp-slim.git"
+  },
+  "bugs": {
+    "url": "https://github.com/next-dna/mcp-slim/issues"
+  },
+  "homepage": "https://github.com/next-dna/mcp-slim#readme",
   "type": "commonjs",
   "publishConfig": {
     "access": "public"

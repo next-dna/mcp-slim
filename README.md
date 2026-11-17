@@ -98,6 +98,13 @@ npm run lint
 npm test
 ```
 
+## Author
+
+Created and maintained by **Sandip Gami** ([@next-dna](https://github.com/next-dna)).
+
+Contributions are welcome — open an issue or PR at
+[next-dna/mcp-slim](https://github.com/next-dna/mcp-slim).
+
 ## License
 
-MIT
+MIT © Sandip Gami

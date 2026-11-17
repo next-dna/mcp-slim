@@ -77,12 +77,16 @@ mcp-slim audit
 ```
 mcp-slim audit                 Scan configs and report token usage + security risks
 mcp-slim compress              Emit a minified, lossless config and report savings
+mcp-slim trends                Report token footprint over time from recorded history
 ```
 
 ### Options
 
 ```
 --config <path>   Use a specific config file (skips auto-discovery)
+--period <p>      Trend bucket: hourly|daily|weekly|monthly|quarterly|yearly (default daily)
+--history <path>  History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
+--no-history      Do not record a snapshot when running audit
 --json            Output machine-readable JSON
 -h, --help        Show help
 -v, --version     Show version
@@ -99,6 +103,9 @@ npx @nextdna/mcp-slim audit --config ./claude_desktop_config.json
 
 # Get JSON for scripting / CI
 npx @nextdna/mcp-slim audit --json
+
+# See how your footprint trends over time (weekly buckets)
+npx @nextdna/mcp-slim trends --period weekly
 
 # See how much you could trim
 npx @nextdna/mcp-slim compress
@@ -129,6 +136,33 @@ npx @nextdna/mcp-slim audit || echo "MCP config needs attention"
 ## How token estimation works
 
 v1.0 measures the **static config** — the serialized JSON for each server definition — using the common ~4-characters-per-token heuristic. It does **not** launch servers to introspect their live tool schemas over JSON-RPC (planned for a later release), so treat the numbers as a lower bound and a useful proxy for config bloat.
+
+## Tracking token footprint over time
+
+`mcp-slim` keeps a small local history of your config's token footprint so you can see how it trends. **Every `audit` run records one timestamped snapshot** (per config file) to a JSONL file at `~/.mcp-slim/history.jsonl` by default (override with `--history <path>` or the `$MCP_SLIM_HISTORY` env var; skip recording with `--no-history`).
+
+The `trends` command then aggregates that history into period buckets:
+
+```bash
+npx @nextdna/mcp-slim trends --period daily
+```
+
+```
+Token footprint trend (daily)
+  PERIOD      RUNS    AVG       MIN       MAX       LAST
+  2026-11-15  3       1,204     1,180     1,204     1,204
+  2026-11-16  5       1,560     1,204     1,980     1,980
+```
+
+Periods: `hourly`, `daily`, `weekly` (ISO week), `monthly`, `quarterly`, `yearly`. Add `--json` for machine-readable output. Buckets use your **local** time zone.
+
+Because the footprint only changes when your config changes, a dense time-series comes from **sampling regularly** — schedule `audit` to build history, e.g. hourly via cron:
+
+```bash
+0 * * * * npx @nextdna/mcp-slim audit >/dev/null 2>&1
+```
+
+> **What this measures:** the *static config footprint* over time (the same estimate `audit` reports), **not** live per-request token consumption from your Claude/Cursor/Windsurf sessions — those clients don't expose a usage log `mcp-slim` can read. It's a lower-bound proxy for how your MCP context cost evolves as you add, remove, or change servers.
 
 ## Development
 

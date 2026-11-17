@@ -63,3 +63,40 @@ export interface ConfigTokenReport {
   servers: ServerTokenReport[];
   totalTokens: number;
 }
+
+/** A single recorded point in the token-footprint history (one per config per run). */
+export interface TokenSnapshot {
+  /** ISO 8601 timestamp of the audit run that produced this snapshot. */
+  ts: string;
+  /** Config origin, e.g. "Claude Desktop". */
+  source: string;
+  /** Absolute path of the config file. */
+  path: string;
+  /** Estimated total token footprint of that config at this time. */
+  totalTokens: number;
+  /** Number of servers registered in that config. */
+  serverCount: number;
+}
+
+/** Time granularity for a trend report. */
+export type TrendPeriod =
+  | 'hourly'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'quarterly'
+  | 'yearly';
+
+/** Aggregated token footprint for one period bucket. */
+export interface TrendBucket {
+  /** Human-readable bucket key, e.g. "2026-11-17" or "2026-Q4". */
+  bucket: string;
+  /** Number of audit runs that fell in this bucket. */
+  samples: number;
+  /** Average per-run total footprint in this bucket (rounded). */
+  avgTokens: number;
+  minTokens: number;
+  maxTokens: number;
+  /** Footprint of the most recent run in this bucket. */
+  lastTokens: number;
+}

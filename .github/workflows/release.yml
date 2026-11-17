@@ -59,14 +59,19 @@ jobs:
         if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
         run: npm run build
 
-      # Diagnostic: OIDC trusted publishing needs npm >= 11.5.1.
-      - name: Show tool versions
+      # Diagnostic: confirm npm version, whether an OIDC id-token is available,
+      # and whether setup-node injected an (empty) auth token that blocks OIDC.
+      - name: OIDC diagnostics
         if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
-        run: node --version && npm --version
+        run: |
+          echo "node: $(node --version)  npm: $(npm --version)"
+          echo "id-token request url present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+          echo "--- ~/.npmrc ---"; cat ~/.npmrc 2>/dev/null || echo "(none)"
+          echo "--- ./.npmrc ---"; cat ./.npmrc 2>/dev/null || echo "(none)"
+          echo "--- npm config registry ---"; npm config get registry
 
-      # No NODE_AUTH_TOKEN: npm exchanges the GitHub OIDC id-token for a one-time
-      # publish credential matching the trusted publisher configured on npm
-      # (which must reference this workflow file, release.yml, with no environment).
+      # No NODE_AUTH_TOKEN: npm should exchange the GitHub OIDC id-token for a
+      # one-time publish credential. Verbose logging surfaces the OIDC attempt.
       - name: Publish to npm
         if: ${{ steps.release.outputs.release_created || github.event_name == 'workflow_dispatch' }}
-        run: npm publish --access public
+        run: npm publish --access public --loglevel verbose

@@ -15,6 +15,7 @@ import type {
   Severity,
   TrendBucket,
   TrendPeriod,
+  UsageComparison,
 } from '../types';
 
 const COLOR_ENABLED = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
@@ -162,6 +163,71 @@ export function renderTrends(buckets: TrendBucket[], period: TrendPeriod): strin
         paint('gray', pad(formatNumber(b.minTokens), 8) + '  ' + pad(formatNumber(b.maxTokens), 8)) +
         '  ' +
         formatNumber(b.lastTokens),
+    );
+  }
+  return lines.join('\n');
+}
+
+/** Plain text + color token for a signed delta (padded by the caller). */
+function deltaCell(delta: number | null): { text: string; color: keyof typeof CODES } {
+  if (delta === null) {
+    return { text: '—', color: 'gray' };
+  }
+  if (delta === 0) {
+    return { text: '0', color: 'gray' };
+  }
+  // Fewer tokens than last time is an improvement.
+  return {
+    text: `${delta > 0 ? '+' : '−'}${formatNumber(Math.abs(delta))}`,
+    color: delta > 0 ? 'yellow' : 'green',
+  };
+}
+
+/** Render the latest-vs-previous token usage table. */
+export function renderUsageReport(rows: UsageComparison[]): string {
+  const lines: string[] = [];
+  lines.push(heading('Token usage — latest vs previous'));
+
+  if (rows.length === 0) {
+    lines.push(
+      paint('gray', '  No usage recorded yet. Record with `mcp-slim token record`.'),
+    );
+    return lines.join('\n');
+  }
+
+  const provWidth = Math.max(8, ...rows.map((r) => r.provider.length));
+  const kindWidth = Math.max(4, ...rows.map((r) => r.kind.length));
+  lines.push(
+    '  ' +
+      paint(
+        'dim',
+        pad('PROVIDER', provWidth) +
+          '  ' +
+          pad('KIND', kindWidth) +
+          '  ' +
+          pad('LATEST', 9) +
+          '  ' +
+          pad('PREVIOUS', 9) +
+          '  ' +
+          pad('CHANGE', 9) +
+          '  RUNS',
+      ),
+  );
+  for (const r of rows) {
+    const d = deltaCell(r.delta);
+    lines.push(
+      '  ' +
+        pad(r.provider, provWidth) +
+        '  ' +
+        pad(r.kind, kindWidth) +
+        '  ' +
+        pad(formatNumber(r.latest), 9) +
+        '  ' +
+        pad(r.previous === null ? '—' : formatNumber(r.previous), 9) +
+        '  ' +
+        paint(d.color, pad(d.text, 9)) +
+        '  ' +
+        paint('gray', formatNumber(r.count)),
     );
   }
   return lines.join('\n');

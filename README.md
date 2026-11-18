@@ -78,18 +78,26 @@ mcp-slim audit
 mcp-slim audit                 Scan configs and report token usage + security risks
 mcp-slim compress              Emit a minified, lossless config and report savings
 mcp-slim trends                Report token footprint over time from recorded history
+mcp-slim token record          Record an LLM token-usage event (flags or piped JSON)
+mcp-slim token report          Show latest vs previous token usage per provider + kind
 ```
 
 ### Options
 
 ```
---config <path>   Use a specific config file (skips auto-discovery)
---period <p>      Trend bucket: hourly|daily|weekly|monthly|quarterly|yearly (default daily)
---history <path>  History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
---no-history      Do not record a snapshot when running audit
---json            Output machine-readable JSON
--h, --help        Show help
--v, --version     Show version
+--config <path>     Use a specific config file (skips auto-discovery)
+--period <p>        Trend bucket: hourly|daily|weekly|monthly|quarterly|yearly (default daily)
+--history <path>    History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
+--no-history        Do not record a snapshot when running audit
+--provider <name>   token: provider (openai|anthropic|gemini|cursor|windsurf|...)
+--kind <name>       token: interaction kind (request|ask|plan|agent; default request)
+--input/--output n  token: explicit prompt/completion token counts
+--total <n>         token: explicit total token count
+--model <name>      token: optional model name to tag the event
+--usage-file <path> token: usage file (default ~/.mcp-slim/usage.jsonl, or $MCP_SLIM_USAGE)
+--json              Output machine-readable JSON
+-h, --help          Show help
+-v, --version       Show version
 ```
 
 ### Examples
@@ -106,6 +114,10 @@ npx @nextdna/mcp-slim audit --json
 
 # See how your footprint trends over time (weekly buckets)
 npx @nextdna/mcp-slim trends --period weekly
+
+# Record LLM token usage, then compare latest vs previous
+npx @nextdna/mcp-slim token record --provider openai --kind ask --input 1200 --output 340
+npx @nextdna/mcp-slim token report
 
 # See how much you could trim
 npx @nextdna/mcp-slim compress
@@ -163,6 +175,41 @@ Because the footprint only changes when your config changes, a dense time-series
 ```
 
 > **What this measures:** the *static config footprint* over time (the same estimate `audit` reports), **not** live per-request token consumption from your Claude/Cursor/Windsurf sessions — those clients don't expose a usage log `mcp-slim` can read. It's a lower-bound proxy for how your MCP context cost evolves as you add, remove, or change servers.
+
+## Counting LLM token usage
+
+When you call an LLM yourself (OpenAI, Anthropic, or Gemini), the API response already tells you exactly how many tokens you used. `mcp-slim token record` captures that into a local log, and `token report` shows your **latest versus previous** usage per provider and interaction kind.
+
+**Record a usage event** — pass counts explicitly, or pipe the response's usage object straight in (field names are normalized per provider):
+
+```bash
+# Explicit counts
+npx @nextdna/mcp-slim token record --provider openai --kind ask --input 1200 --output 340
+
+# Pipe an OpenAI usage object
+echo '{"prompt_tokens":1500,"completion_tokens":500}' \
+  | npx @nextdna/mcp-slim token record --provider openai --kind agent
+
+# Pipe a full response — the `usage` / `usageMetadata` field is picked up automatically
+your-anthropic-call | npx @nextdna/mcp-slim token record --provider anthropic --kind plan
+```
+
+**Report latest vs previous:**
+
+```bash
+npx @nextdna/mcp-slim token report
+```
+
+```
+Token usage — latest vs previous
+  PROVIDER   KIND   LATEST     PREVIOUS   CHANGE     RUNS
+  anthropic  agent  1,020      —          —          1
+  openai     ask    2,000      1,540      +460       2
+```
+
+`--kind` is free-form (`request`, `ask`, `plan`, `agent`, …). Events are stored at `~/.mcp-slim/usage.jsonl` (override with `--usage-file` or `$MCP_SLIM_USAGE`). Add `--json` for machine-readable output.
+
+> **Providers:** OpenAI, Anthropic (Claude API), and Gemini report token usage in their responses, so they can be captured automatically. **Cursor, Claude Desktop, and other GUI apps do not expose per-request token counts** to external tools — record those manually from their own usage dashboard, e.g. `token record --provider cursor --kind agent --total 5000`.
 
 ## Development
 

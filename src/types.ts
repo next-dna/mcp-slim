@@ -47,6 +47,22 @@ export interface SecurityFinding {
   message: string;
 }
 
+/** Letter grade for a config's security posture. */
+export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
+
+/** A security scorecard derived from a set of findings. */
+export interface Scorecard {
+  /** 0–100 score (100 = clean). */
+  score: number;
+  grade: Grade;
+  /** Finding counts by severity. */
+  counts: { high: number; medium: number; low: number; info: number };
+  /** Distinct human-readable issue labels, most severe first. */
+  issues: string[];
+  /** One-line verdict, e.g. "Grade D — 2 high, 1 medium: shell execution, …". */
+  summary: string;
+}
+
 /** Token footprint of a single server's definition. */
 export interface ServerTokenReport {
   server: string;

@@ -16,6 +16,7 @@ These configs are buried JSON files most people never open. `mcp-slim` makes the
 ## Features
 
 - **Config auto-discovery** — finds standard config files across macOS, Windows, and Linux, or point it at your own with `--config`.
+- **Security scorecard** — an at-a-glance **A–F grade** with a one-line verdict and a shareable README **badge**.
 - **Token audit** — estimates tokens per server (~4 chars/token) and ranks the worst offenders.
 - **Security linter** — heuristic checks for shell exec, broad filesystem scopes, unpinned `npx`/`uvx` packages, plaintext secrets, and `http://` endpoints.
 - **Lossless compression** — strips insignificant JSON whitespace and collapses whitespace in `description` fields, reporting token savings.
@@ -87,6 +88,7 @@ mcp-slim trends                Report token footprint over time from recorded hi
 --period <p>      Trend bucket: hourly|daily|weekly|monthly|quarterly|yearly (default daily)
 --history <path>  History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
 --no-history      Do not record a snapshot when running audit
+--badge           audit: print a shields.io security-grade badge for your README
 --json            Output machine-readable JSON
 -h, --help        Show help
 -v, --version     Show version
@@ -124,6 +126,31 @@ This lets you gate CI on config hygiene:
 ```bash
 npx @nextdna/mcp-slim audit || echo "MCP config needs attention"
 ```
+
+## Security scorecard & badge
+
+Every `audit` prints an at-a-glance **security grade** for your config:
+
+```
+  [  F  ]  Security grade  0/100
+  3 high, 2 medium: broad filesystem access, shell execution, unpinned package
+```
+
+The grade (A–F) is scored from the security findings — a clean config earns `A 100/100`; each risk deducts points (high −30, medium −12, low −4).
+
+Add `--badge` to also get a ready-to-paste **shields.io badge** for your README or a social post:
+
+```bash
+npx @nextdna/mcp-slim audit --badge
+```
+
+```
+![MCP security](https://img.shields.io/badge/MCP%20security-A%20(100%2F100)-brightgreen)
+```
+
+Which renders as a badge you can show off:
+
+![MCP security A](https://img.shields.io/badge/MCP%20security-A%20(100%2F100)-brightgreen)
 
 ## Discovered config locations
 

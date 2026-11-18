@@ -5,6 +5,13 @@ maintained automatically by [release-please](https://github.com/googleapis/relea
 from [Conventional Commits](https://www.conventionalcommits.org/); do not edit
 it by hand.
 
+## [1.2.0](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.1.0...mcp-slim-v1.2.0) (2026-11-18)
+
+
+### Features
+
+* add security scorecard (A–F grade) and shareable badge ([#12](https://github.com/next-dna/mcp-slim/issues/12)) ([3fd42c1](https://github.com/next-dna/mcp-slim/commit/3fd42c1c35829f19ac7541fca75865ccefbdd235))
+
 ## [1.1.0](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.0.2...mcp-slim-v1.1.0) (2026-11-17)
 
 

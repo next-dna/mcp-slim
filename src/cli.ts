@@ -26,14 +26,16 @@ import { lintConfig } from './security/linter';
 import { compressConfig } from './compressor/compressor';
 import { appendSnapshots, readHistory } from './history/history-store';
 import { TREND_PERIODS, aggregateTrends } from './history/trends';
+import { computeScorecard, badgeMarkdown } from './security/scorecard';
 import {
   heading,
   renderCompressionResult,
+  renderScorecard,
   renderSecurityFindings,
   renderTokenReport,
   renderTrends,
 } from './reporter/reporter';
-import type { TokenSnapshot, TrendPeriod } from './types';
+import type { SecurityFinding, TokenSnapshot, TrendPeriod } from './types';
 
 interface ParsedArgs {
   command: string | undefined;
@@ -44,6 +46,7 @@ interface ParsedArgs {
   period: TrendPeriod;
   history: string | undefined;
   noHistory: boolean;
+  badge: boolean;
 }
 
 const USAGE = `
@@ -62,6 +65,7 @@ Options:
   --period <p>          Trend bucket: hourly|daily|weekly|monthly|quarterly|yearly (default daily)
   --history <path>      History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
   --no-history          Do not record a snapshot when running audit
+  --badge               audit: print a shields.io security-grade badge for your README
   --json                Output machine-readable JSON
   -h, --help            Show this help
   -v, --version         Show version
@@ -95,6 +99,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     period: 'daily',
     history: undefined,
     noHistory: false,
+    badge: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -113,6 +118,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
       case '--no-history':
         parsed.noHistory = true;
+        break;
+      case '--badge':
+        parsed.badge = true;
         break;
       case '--config':
         parsed.config = argv[++i];
@@ -159,10 +167,18 @@ function runAudit(args: ParsedArgs): number {
     return 1;
   }
 
-  const results = configs.map((config) => ({
-    tokens: analyzeConfig(config),
-    findings: lintConfig(config),
-  }));
+  const results = configs.map((config) => {
+    const findings = lintConfig(config);
+    return {
+      tokens: analyzeConfig(config),
+      findings,
+      scorecard: computeScorecard(findings),
+    };
+  });
+
+  // Overall scorecard across all scanned configs (used for the README badge).
+  const allFindings: SecurityFinding[] = results.flatMap((r) => r.findings);
+  const overall = computeScorecard(allFindings);
 
   // Record a token-footprint snapshot so `trends` can show change over time.
   if (!args.noHistory) {
@@ -178,16 +194,25 @@ function runAudit(args: ParsedArgs): number {
   }
 
   if (args.json) {
-    process.stdout.write(JSON.stringify(results, null, 2) + '\n');
+    const payload = args.badge
+      ? { results, badge: badgeMarkdown(overall) }
+      : results;
+    process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
     return results.some((r) => r.findings.some((f) => f.severity === 'high')) ? 2 : 0;
   }
 
   let highCount = 0;
-  for (const { tokens, findings } of results) {
+  for (const { tokens, findings, scorecard } of results) {
     process.stdout.write(renderTokenReport(tokens) + '\n');
+    process.stdout.write(renderScorecard(scorecard) + '\n');
     process.stdout.write(heading('Security') + '\n');
     process.stdout.write(renderSecurityFindings(findings) + '\n');
     highCount += findings.filter((f) => f.severity === 'high').length;
+  }
+
+  if (args.badge) {
+    process.stdout.write(heading('Badge (paste into your README)') + '\n');
+    process.stdout.write('  ' + badgeMarkdown(overall) + '\n');
   }
 
   // Non-zero exit when high-severity issues exist, so CI can gate on it.

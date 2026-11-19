@@ -35,7 +35,10 @@ import {
   renderTokenReport,
   renderTrends,
 } from './reporter/reporter';
-import type { SecurityFinding, TokenSnapshot, TrendPeriod } from './types';
+import type { SecurityFinding, Severity, TokenSnapshot, TrendPeriod } from './types';
+
+/** Severity threshold for `audit --fail-on`; 'none' never fails on findings. */
+type FailOn = Severity | 'none';
 
 interface ParsedArgs {
   command: string | undefined;
@@ -47,6 +50,7 @@ interface ParsedArgs {
   history: string | undefined;
   noHistory: boolean;
   badge: boolean;
+  failOn: FailOn;
 }
 
 const USAGE = `
@@ -66,6 +70,7 @@ Options:
   --history <path>      History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
   --no-history          Do not record a snapshot when running audit
   --badge               audit: print a shields.io security-grade badge for your README
+  --fail-on <severity>  audit: exit non-zero when a finding at/above none|low|medium|high (default high)
   --json                Output machine-readable JSON
   -h, --help            Show this help
   -v, --version         Show version
@@ -73,9 +78,33 @@ Options:
 Examples:
   npx mcp-slim audit
   npx mcp-slim audit --config ./claude_desktop_config.json
+  npx mcp-slim audit --fail-on medium   # CI gate: fail on medium+ findings
   npx mcp-slim trends --period weekly
   npx mcp-slim compress --json
 `;
+
+const FAIL_ON_LEVELS: readonly FailOn[] = ['none', 'low', 'medium', 'high'];
+const SEVERITY_RANK: Record<Severity, number> = { info: 0, low: 1, medium: 2, high: 3 };
+
+/** Validate and set the --fail-on threshold, throwing on an unknown value. */
+function setFailOn(parsed: ParsedArgs, value: string | undefined): void {
+  if (value !== undefined && (FAIL_ON_LEVELS as readonly string[]).includes(value)) {
+    parsed.failOn = value as FailOn;
+    return;
+  }
+  throw new Error(
+    `Invalid --fail-on "${value ?? ''}". Use one of: ${FAIL_ON_LEVELS.join(', ')}.`,
+  );
+}
+
+/** True when any finding is at or above the fail-on threshold. */
+function meetsFailThreshold(findings: SecurityFinding[], failOn: FailOn): boolean {
+  if (failOn === 'none') {
+    return false;
+  }
+  const threshold = SEVERITY_RANK[failOn];
+  return findings.some((f) => SEVERITY_RANK[f.severity] >= threshold);
+}
 
 /** Validate and set a trend period, throwing on an unknown value. */
 function setPeriod(parsed: ParsedArgs, value: string | undefined): void {
@@ -100,6 +129,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     history: undefined,
     noHistory: false,
     badge: false,
+    failOn: 'high',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -131,6 +161,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--period':
         setPeriod(parsed, argv[++i]);
         break;
+      case '--fail-on':
+        setFailOn(parsed, argv[++i]);
+        break;
       default:
         if (arg !== undefined && arg.startsWith('--config=')) {
           parsed.config = arg.slice('--config='.length);
@@ -138,6 +171,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
           parsed.history = arg.slice('--history='.length);
         } else if (arg !== undefined && arg.startsWith('--period=')) {
           setPeriod(parsed, arg.slice('--period='.length));
+        } else if (arg !== undefined && arg.startsWith('--fail-on=')) {
+          setFailOn(parsed, arg.slice('--fail-on='.length));
         } else if (arg !== undefined && !arg.startsWith('-') && parsed.command === undefined) {
           parsed.command = arg;
         }
@@ -193,21 +228,22 @@ function runAudit(args: ParsedArgs): number {
     appendSnapshots(snapshots, args.history);
   }
 
+  // Exit non-zero when a finding meets the fail-on threshold, so CI can gate.
+  const gateFailed = meetsFailThreshold(allFindings, args.failOn);
+
   if (args.json) {
     const payload = args.badge
       ? { results, badge: badgeMarkdown(overall) }
       : results;
     process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
-    return results.some((r) => r.findings.some((f) => f.severity === 'high')) ? 2 : 0;
+    return gateFailed ? 2 : 0;
   }
 
-  let highCount = 0;
   for (const { tokens, findings, scorecard } of results) {
     process.stdout.write(renderTokenReport(tokens) + '\n');
     process.stdout.write(renderScorecard(scorecard) + '\n');
     process.stdout.write(heading('Security') + '\n');
     process.stdout.write(renderSecurityFindings(findings) + '\n');
-    highCount += findings.filter((f) => f.severity === 'high').length;
   }
 
   if (args.badge) {
@@ -215,8 +251,7 @@ function runAudit(args: ParsedArgs): number {
     process.stdout.write('  ' + badgeMarkdown(overall) + '\n');
   }
 
-  // Non-zero exit when high-severity issues exist, so CI can gate on it.
-  return highCount > 0 ? 2 : 0;
+  return gateFailed ? 2 : 0;
 }
 
 /** `compress` command. Returns a process exit code. */

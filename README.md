@@ -20,6 +20,7 @@ These configs are buried JSON files most people never open. `mcp-slim` makes the
 - **Token audit** — estimates tokens per server (~4 chars/token) and ranks the worst offenders.
 - **Security linter** — heuristic checks for shell exec, broad filesystem scopes, unpinned `npx`/`uvx` packages, plaintext secrets, and `http://` endpoints.
 - **Lossless compression** — strips insignificant JSON whitespace and collapses whitespace in `description` fields, reporting token savings.
+- **CI-ready** — a tunable `--fail-on` gate and a drop-in **GitHub Action** to block risky configs in pull requests.
 - **Zero runtime dependencies** — the CLI runs on native Node APIs (`fs`, `path`, `os`) only.
 
 ## Use cases
@@ -89,6 +90,7 @@ mcp-slim trends                Report token footprint over time from recorded hi
 --history <path>  History file (default ~/.mcp-slim/history.jsonl, or $MCP_SLIM_HISTORY)
 --no-history      Do not record a snapshot when running audit
 --badge           audit: print a shields.io security-grade badge for your README
+--fail-on <sev>   audit: exit non-zero on a finding at/above none|low|medium|high (default high)
 --json            Output machine-readable JSON
 -h, --help        Show help
 -v, --version     Show version
@@ -115,16 +117,54 @@ npx @nextdna/mcp-slim compress
 
 ### Exit codes
 
-| Code | Meaning                                  |
-| ---- | ---------------------------------------- |
-| 0    | Success, no high-severity issues         |
-| 1    | Usage error or no config found           |
-| 2    | `audit` found at least one HIGH finding  |
+| Code | Meaning                                                      |
+| ---- | ------------------------------------------------------------ |
+| 0    | Success, no findings at or above the `--fail-on` threshold   |
+| 1    | Usage error or no config found                               |
+| 2    | `audit` found a finding at or above `--fail-on` (default high)|
 
-This lets you gate CI on config hygiene:
+Tune the gate with `--fail-on none|low|medium|high`:
 
 ```bash
-npx @nextdna/mcp-slim audit || echo "MCP config needs attention"
+# Default: fail only on HIGH findings
+npx @nextdna/mcp-slim audit
+
+# Stricter: fail on medium-and-up
+npx @nextdna/mcp-slim audit --fail-on medium
+
+# Report only, never fail
+npx @nextdna/mcp-slim audit --fail-on none
+```
+
+## Use as a GitHub Action
+
+Gate your repo's MCP config in CI with the bundled action:
+
+```yaml
+# .github/workflows/mcp-audit.yml
+name: MCP audit
+on: [push, pull_request]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: next-dna/mcp-slim@main
+        with:
+          config: .mcp/config.json   # optional; omit for auto-discovery
+          fail-on: high              # none | low | medium | high
+```
+
+**Inputs:** `config` (path to audit), `fail-on` (severity gate), `version` (dist-tag/version of `@nextdna/mcp-slim`, default `latest`), `args` (extra flags). Pin to a release tag or commit SHA instead of `@main` for reproducible builds.
+
+**Outputs:** `grade` (A–F) and `score` (0–100) — usable in later steps. The action also writes a security summary to the **PR's Checks tab** (via the job step summary):
+
+```yaml
+      - uses: next-dna/mcp-slim@main
+        id: mcp
+        with:
+          fail-on: medium
+      - run: echo "MCP security grade is ${{ steps.mcp.outputs.grade }}"
 ```
 
 ## Security scorecard & badge

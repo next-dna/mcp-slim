@@ -5,6 +5,13 @@ maintained automatically by [release-please](https://github.com/googleapis/relea
 from [Conventional Commits](https://www.conventionalcommits.org/); do not edit
 it by hand.
 
+## [1.3.0](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.2.0...mcp-slim-v1.3.0) (2026-11-19)
+
+
+### Features
+
+* add --fail-on severity gate and a GitHub Action ([#14](https://github.com/next-dna/mcp-slim/issues/14)) ([8063897](https://github.com/next-dna/mcp-slim/commit/806389749d329bd49203b773abb8b689387f6a58))
+
 ## [1.2.0](https://github.com/next-dna/mcp-slim/compare/mcp-slim-v1.1.0...mcp-slim-v1.2.0) (2026-11-18)
 
 

@@ -11,6 +11,8 @@ import type {
 } from '../compressor/compressor';
 import type {
   ConfigTokenReport,
+  Grade,
+  Scorecard,
   SecurityFinding,
   Severity,
   TrendBucket,
@@ -28,6 +30,7 @@ const CODES = {
   green: '\x1b[32m',
   cyan: '\x1b[36m',
   gray: '\x1b[90m',
+  orange: '\x1b[38;5;208m',
 } as const;
 
 function paint(code: keyof typeof CODES, text: string): string {
@@ -121,6 +124,26 @@ export function renderCompressionResult(source: string, result: CompressionResul
 /** Section heading helper. */
 export function heading(text: string): string {
   return paint('cyan', paint('bold', `\n${text}`));
+}
+
+const GRADE_COLOR: Record<Grade, keyof typeof CODES> = {
+  A: 'green',
+  B: 'green',
+  C: 'yellow',
+  D: 'orange',
+  F: 'red',
+};
+
+/** Render a prominent, shareable security grade banner. */
+export function renderScorecard(scorecard: Scorecard): string {
+  const color = GRADE_COLOR[scorecard.grade];
+  const badge = paint(color, paint('bold', `  ${scorecard.grade}  `));
+  const score = paint('gray', `${scorecard.score}/100`);
+  const verdict =
+    scorecard.issues.length === 0
+      ? paint('green', 'No security issues found')
+      : scorecard.summary.replace(/^Grade [A-F] — /, '');
+  return ['', `  [${badge}]  ${paint('bold', 'Security grade')}  ${score}`, `  ${verdict}`].join('\n');
 }
 
 /** Render a token-footprint trend table for one period. */
